@@ -71,12 +71,12 @@
   position: absolute;
   top: 0;
   left: 0;
-  width: 25%;
+  width: 23%;
   height: 100vh;
   background-color: #f4f4f4;
   display: flex;
   flex-direction: column;
-  padding: 20px;
+  padding: 10px;
   box-shadow: 2px 0px 5px rgba(0, 0, 0, 0.1);
 }
 
@@ -107,6 +107,7 @@
 
 .sidebar-search {
   margin-bottom: 20px;
+  width: 80%;
 }
 
 .sidebar-search input {
@@ -136,16 +137,16 @@
 .main-container {
   position: absolute;
   top: 0;
-  left: 25%;
+  left: 24.5%;
   width: 75%;
   height: 100vh;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  padding: 20px;
 }
 
 .main-header {
+  background-color: #808185;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -155,8 +156,9 @@
 }
 
 .main-header h2 {
+  padding-left: 10px;
   font-size: 1.5rem;
-  color: #333;
+  color: white;
 }
 
 .main-header button {
@@ -166,6 +168,7 @@
   border: none;
   border-radius: 5px;
   cursor: pointer;
+  padding-right: 10px;
 }
 
 .main-header button:hover {
@@ -175,39 +178,55 @@
 .main-messages {
   flex-grow: 1;
   overflow-y: auto;
-  padding-bottom: 20px;
+  padding: 20px; /* Add padding around the messages */
+  padding-left: 0px;
+  display: flex; /* Use flexbox for message alignment */
+  flex-direction: column; /* Stack messages vertically */
 }
 
 .message-item {
-  margin-bottom: 10px;
+  margin-bottom: 10px; /* Space between messages */
   padding: 10px;
   border-radius: 5px;
   max-width: 60%;
+  word-wrap: break-word; /* Ensure long words are wrapped */
 }
 
 .user-message {
-  background-color: #007bff;
-  color: white;
-  align-self: flex-end;
+  padding-left: 10px;
+  background-color: #e9ecef;
+  color: black;
+  align-self: flex-start; /* Align user message to the left */
+  margin-right: auto; /* Ensure the user message aligns to the left */
 }
 
 .friend-message {
+  padding-right: 10px;
   background-color: #e9ecef;
-  align-self: flex-start;
+  color: black; /* Optional: Change color for contrast */
+  align-self: flex-end; /* Align friend message to the right */
+  margin-left: auto; /* Ensure the friend message aligns to the right */
 }
 
 .main-input {
+  position: fixed;
+  bottom: 0;
+  left: 25%;
+  width: 100%; /* Full row width */
   display: flex;
   align-items: center;
   border-top: 1px solid #ddd;
-  padding-top: 10px;
+  padding: 10px;
+  background-color: white;
+  box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.1);
 }
 
 .main-input input {
-  flex-grow: 1;
+  flex-grow: 1; /* Take up remaining space */
   padding: 10px;
   border: 1px solid #ccc;
   border-radius: 5px;
+  height: 100%; /* Make input as tall as the button */
   margin-right: 10px;
 }
 
@@ -218,6 +237,8 @@
   border: none;
   border-radius: 5px;
   cursor: pointer;
+  height: 100%; /* Match height of the input field */
+  white-space: nowrap; /* Prevent text wrapping in the button */
 }
 
 .main-input button:hover {
