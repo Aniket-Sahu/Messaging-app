@@ -68,7 +68,9 @@ function Main({ user, selectedFriend, setAuthenticated }) {
                 const data = await response.json();
                 console.log(data.message); 
                 setAuthenticated(false); 
-                navigate('/'); 
+                setTimeout(() => {
+                    navigate('/'); 
+                }, 100);
             } else {
                 console.error("Logout failed");
             }
@@ -87,7 +89,7 @@ function Main({ user, selectedFriend, setAuthenticated }) {
                 {messages.length > 0 ? messages.map((msg, index) => (
                     <div
                         key={index}
-                        className={msg.sender === selectedFriend.name ? "friend-message" : "user-message"}>
+                        className={msg.user_id === user.user_id ? "user-message" : "friend-message" }>
                         <span>{msg.message}</span>
                     </div>
                 )): <div>You are so lonely</div>}
