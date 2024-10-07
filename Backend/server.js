@@ -1,6 +1,7 @@
 /*Functionalities to add - 
 Deleting a message - This is also tricky. Am I to add a seperate 'message-id' to each message so as to delete it? or am I going to 
 take a less effcient way. Actually if I feel like changing the DB then I won't do those in the protoype.*/
+// @ts-nocheck
 
 import express from "express";
 import bodyParser from "body-parser";

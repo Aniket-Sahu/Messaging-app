@@ -1,3 +1,5 @@
+// @ts-nocheck
+
 import React, { useState, useEffect } from 'react';
 import Sidebar from './sidebar.jsx';
 import Main from './main.jsx';
