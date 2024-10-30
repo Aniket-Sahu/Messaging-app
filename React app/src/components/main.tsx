@@ -1,135 +1,245 @@
 import React, { useEffect, useState } from "react";
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from "react-router-dom";
 
 interface User {
-    user_id: number;
-    username: string;
-} 
+  user_id: number;
+  username: string;
+}
 
-interface mainProps{
-    user: User;
-    selectedFriend: User | null;
-    setAuthenticated: (value: boolean) => void;
+interface mainProps {
+  user: User;
+  selectedFriend: User | null;
+  setAuthenticated: (value: boolean) => void;
 }
 
 interface Message {
-    message_id?: number;
-    user_id: number;
-    friend_id: number;
-    time: Date;
-    message: string;
+  message_id?: number;
+  user_id: number;
+  friend_id: number;
+  time: Date;
+  message: string;
 }
 
-const Main: React.FC<mainProps> = ({ user, selectedFriend, setAuthenticated }) => {
-    const navigate = useNavigate();
-    const [messages, setMessages] = useState<Message[]>([]);
-    const [newMessage, setNewMessage] = useState<string>("");
+const Main: React.FC<mainProps> = ({
+  user,
+  selectedFriend,
+  setAuthenticated,
+}) => {
+  const navigate = useNavigate();
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [newMessage, setNewMessage] = useState<string>("");
+  const [showMenu, setShowMenu] = useState<number | null>(null);
+  const [editedMessage, setEditedMessage] = useState<string>("");
+  const [editing, setEditing] = useState<{
+    isEditing: boolean;
+    index: number | null;
+  }>({ isEditing: false, index: null });
 
-    useEffect(() => {
-        fetchMessages();
-    }, [selectedFriend]);
+  const handleMenuToggle = (index: number): void => {
+    setShowMenu(showMenu === index ? null : index);
+  };
 
-    const fetchMessages = async () => {
-        if (!selectedFriend) return;
+  const handleDelete = async (messageId: number): Promise<void> => {
+    console.log(user.user_id);
+    try {
+      const response = await fetch(`/api/messages/${messageId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (response.ok) {
+        setMessages((prevMessages) =>
+          prevMessages.filter((message) => message.message_id !== messageId)
+        );
+      } else {
+        console.error("Failed to delete message:", await response.json());
+      }
+    } catch (error) {
+      console.error("Error fetching messages:", error);
+    }
+  };  
 
-        try {
-            const response = await fetch(`/api/messages?friend_id=${selectedFriend.user_id}`, {
-                method: 'GET',
-                credentials: 'include',
-            });
-            const data = await response.json();
-            const sortedMessages = data.messages.sort((a: Message, b:Message) => new Date(a.time).getTime() - new Date(b.time).getTime());
-            setMessages(sortedMessages);
-        } catch (error) {
-            console.error('Error fetching messages:', error);
+  const handleEdit = async (): Promise<void> => {
+    if (editing.index === null) return;
+  
+    try {
+      const messageId = messages[editing.index].message_id;
+      const response = await fetch(`/api/messages/${messageId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          editedMessage,
+        }),
+      });
+      if (response.ok) {
+        const updatedMessage: Message = await response.json();
+        setMessages((prevMessages) =>
+          prevMessages.map((msg) =>
+            msg.message_id === messageId ? updatedMessage : msg
+          )
+        );
+        setNewMessage("");
+        setEditing({ isEditing: false, index: null });
+        setEditedMessage("");
+      }
+    } catch (error) {
+      console.error("Error sending message", error);
+    }
+  };  
+
+  useEffect(() => {
+    fetchMessages();
+  }, [selectedFriend]);
+
+  const fetchMessages = async () => {
+    if (!selectedFriend) return;
+
+    try {
+      const response = await fetch(
+        `/api/messages?friend_id=${selectedFriend.user_id}`,
+        {
+          method: "GET",
+          credentials: "include",
         }
-    };
+      );
+      const data = await response.json();
+      const sortedMessages = data.messages.sort(
+        (a: Message, b: Message) =>
+          new Date(a.time).getTime() - new Date(b.time).getTime()
+      );
+      setMessages(sortedMessages);
+    } catch (error) {
+      console.error("Error fetching messages:", error);
+    }
+  };
 
-    const messageSent = async (message: string) => {
-        if (!selectedFriend) {
-            alert("Please select a friend to send a message."); 
-            return;
-        }
-        try {
-            const response = await fetch('/api/sendMessage', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
-                body: JSON.stringify({
-                    message,
-                    friend_id: selectedFriend.user_id,
-                }),
-            });
-            const data = await response.json();
+  const messageSent = async (message: string) => {
+    if (!selectedFriend) {
+      alert("Please select a friend to send a message.");
+      return;
+    }
+    try {
+      const response = await fetch("/api/sendMessage", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          message,
+          friend_id: selectedFriend.user_id,
+        }),
+      });
+      const data = await response.json();
 
-            if (response.ok) {
-                setMessages((prevMessages) => [...prevMessages, data]);
-                setNewMessage("");
-            }
-        } catch (error) {
-            console.error('Error sending message', error);
-        }
-    };
+      if (response.ok) {
+        setMessages((prevMessages) => [...prevMessages, data]);
+        setNewMessage("");
+      }
+    } catch (error) {
+      console.error("Error sending message", error);
+    }
+  };
 
-    const handleSendMessage = (e: React.FormEvent<HTMLFormElement>) => {
-        e.preventDefault();
-        if (newMessage.trim()) {
-            messageSent(newMessage);
-        }
-    };
+  const handleSendMessage = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (newMessage.trim()) {
+      messageSent(newMessage);
+    }
+  };
 
-    const handleLogout = async () => {
-        try {
-            const response = await fetch('/logout', {
-                method: 'GET',
-                credentials: 'include',
-            });
+  const handleLogout = async () => {
+    try {
+      const response = await fetch("/logout", {
+        method: "GET",
+        credentials: "include",
+      });
 
-            if (response.ok) {
-                const data = await response.json();
-                console.log(data.message); 
-                setAuthenticated(false); 
-                setTimeout(() => {
-                    navigate('/'); 
-                }, 100);
+      if (response.ok) {
+        const data = await response.json();
+        setAuthenticated(false);
+        navigate(data);
+      } else {
+        const errorData = await response.json();
+        console.error("Logout failed:", errorData.message);
+      }
+    } catch (error) {
+      console.error("Error during logout:", error);
+    }
+  };
+
+  return (
+    <div className="main-container">
+      <div className="main-header">
+        {selectedFriend ? selectedFriend.username : "Select a friend"}
+        <button onClick={handleLogout}>Logout</button>
+      </div>
+      <div className="main-messages">
+        {messages.length > 0 ? (
+          messages.map((msg, index) => ( // next time, try replacing index with message_id
+            <div
+              key={index}
+              className={
+                msg.user_id === user.user_id ? "friend-message" : "user-message"  //pay attention to this line, it has fried my brain
+              }
+            >
+              <span>{msg.message}</span>
+
+              <div
+                className="menu-dots"
+                onClick={() => handleMenuToggle(index)}
+              >
+                &#x22EE;
+              </div>
+
+              {showMenu === index && (
+                <div className="dropdown-menu">
+                  <button
+                    onClick={() => {
+                      setEditing({ isEditing: true, index });
+                      setEditedMessage(msg.message);
+                      setShowMenu(null);
+                    }}
+                  >
+                    Edit
+                  </button>
+                  <button onClick={() => handleDelete(msg.message_id!)}>Delete</button>
+                </div>
+              )}
+            </div>
+          ))
+        ) : (
+          <div>You are so lonely</div>
+        )}
+      </div>
+      <div className="main-input">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (editing.isEditing) {
+              handleEdit(); 
             } else {
-                console.error("Logout failed");
+              handleSendMessage(e); 
             }
-        } catch (error) {
-            console.error('Error during logout:', error);
-        }
-    };
-
-    return (
-        <div className="main-container">
-            <div className="main-header">
-                {selectedFriend ? selectedFriend.username : "Select a friend"}
-                <button onClick={handleLogout}>Logout</button>
-            </div>
-            <div className="main-messages">
-                {messages.length > 0 ? messages.map((msg, index) => (
-                    <div
-                        key={index}
-                        className={msg.user_id === user.user_id ? "user-message" : "friend-message" }>
-                        <span>{msg.message}</span>
-                    </div>
-                )): <div>You are so lonely</div>}
-            </div>
-            <div className="main-input">
-                <form onSubmit={handleSendMessage}>
-                    <input
-                        id="message-input"  
-                        name="message"   
-                        type="text"
-                        placeholder="Type your message..."
-                        value={newMessage}
-                        onChange={(e) => setNewMessage(e.target.value)}
-                    />
-                    <button type="submit">Send</button>
-                </form>
-            </div>
-        </div>
-    );
-}
+          }}
+        >
+          <input
+            id="message-input"
+            name="message"
+            type="text"
+            placeholder="Type your message..."
+            value={editing.isEditing ? editedMessage : newMessage}
+            onChange={(e) => {
+              if (editing.isEditing) {
+                setEditedMessage(e.target.value);
+              } else {
+                setNewMessage(e.target.value);
+              }
+            }}
+          />
+          <button type="submit">{editing.isEditing ? "Save" : "Send"}</button>
+        </form>
+      </div>
+    </div>
+  );
+};
 
 export default Main;

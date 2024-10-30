@@ -7,10 +7,6 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-/*Functionalities to add -
-// Log out should redirect instead of just show a reponse
-Deleting a message - This is also tricky. Am I to add a seperate 'message-id' to each message so as to delete it? or am I going to
-take a less effcient way. Actually if I feel like changing the DB then I won't do those in the protoype.*/
 import express from "express";
 import bodyParser from "body-parser";
 import pg from "pg";
@@ -73,9 +69,9 @@ app.get("/app", (req, res) => {
 app.get("/logout", (req, res, next) => {
     req.logout((err) => {
         if (err) {
-            return next(err);
+            return res.status(500).json({ message: "Error during logout", error: err });
         }
-        res.redirect("/login");
+        res.status(200).json("/login");
     });
 });
 app.post("/login", (req, res, next) => {
@@ -223,22 +219,42 @@ app.post("/api/sendMessage", (req, res) => __awaiter(void 0, void 0, void 0, fun
         }
     }
 }));
-/*
-app.delete("/api/messages/:id", async (req, res) => {
-  if (!req.isAuthenticated()) {
-    return res.status(401).json({ message: "Unauthorized" });
-  }
-  const noteId = parseInt(req.params.id, 10);
-  
-  try {
-    await db.query("DELETE FROM data WHERE id = $1 AND user_id = $2", [messageId, req.user.user_id]);
-    res.status(204).send();
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Error deleting message" });
-  }
-});
-*/
+app.delete("/api/messages/:id", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    if (!req.isAuthenticated()) {
+        res.status(401).json({ message: "Unauthorized" });
+        return;
+    }
+    const messageId = parseInt(req.params.id, 10);
+    try {
+        yield db.query("DELETE FROM data WHERE message_id = $1 AND user_id = $2", [messageId, req.user.user_id]);
+        res.status(204).send();
+    }
+    catch (err) {
+        console.error(err);
+        res.status(500).json({ message: "Error deleting message" });
+    }
+}));
+app.patch("/api/messages/:id", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    if (!req.isAuthenticated()) {
+        res.status(401).json({ message: "Unauthorized" });
+        return;
+    }
+    const messageId = parseInt(req.params.id, 10);
+    const { editedMessage } = req.body;
+    try {
+        const result = yield db.query("UPDATE data SET message = $1 WHERE message_id = $2 AND user_id = $3 RETURNING *", [editedMessage, messageId, req.user.user_id]);
+        if (result.rowCount === 0) {
+            res.status(404).json({ message: "Message not found or not authorized" });
+            return;
+        }
+        const updatedMessage = result.rows[0];
+        res.status(200).json(updatedMessage);
+    }
+    catch (err) {
+        console.error(err);
+        res.status(500).json({ message: "Error editing message" });
+    }
+}));
 passport.use(new Strategy((username, password, cb) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const result = yield db.query("SELECT * FROM users WHERE username = $1", [username]);
