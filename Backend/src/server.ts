@@ -1,5 +1,5 @@
-// After registeration assign the user a random UID (unique ID)
-// User can edit their profile in the main.jsx section to change their username or their bio
+// Next feature is too add a simple feature to see your friend's bio (and info)
+// Then somehow incorporate the friend request funtionality 
 
 import express, { Request, Response, NextFunction } from "express";
 import bodyParser from "body-parser";
@@ -230,6 +230,30 @@ app.get("/api/messages", async (req: Request, res: Response) => {
     } catch (err) {
       console.error(err);
       res.status(500).json({ message: "Error fetching messages" });
+    }
+  }
+});
+
+app.get("/api/getDetails", async (req: Request, res: Response) => {
+  if (req.user) {
+    const friendId = parseInt(req.query.friendId as string);
+    if (isNaN(friendId)) {
+      res.status(400).json({ message: "Invalid friend ID" });
+      return;
+    }
+    try {
+      const result: QueryResult<{ username: string; bio: string }> = await db.query(
+        "SELECT username, bio FROM users WHERE user_id = $1",
+        [friendId]
+      );
+      if (result.rows.length === 0) {
+        res.status(404).json({ message: "Friend not found" });
+        return;
+      }
+      res.json({ details: result.rows[0]});
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ message: "Error fetching details" });
     }
   }
 });

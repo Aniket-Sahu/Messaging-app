@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import FriendDetails from "./friendDetails";
 
 interface User {
   user_id: number;
@@ -29,6 +30,7 @@ const Main: React.FC<mainProps> = ({
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState<string>("");
   const [showMenu, setShowMenu] = useState<number | null>(null);
+  const [showFriendDetails, setShowFriendDetails] = useState<boolean>(false);
   const [editedMessage, setEditedMessage] = useState<string>("");
   const [editing, setEditing] = useState<{
     isEditing: boolean;
@@ -56,11 +58,11 @@ const Main: React.FC<mainProps> = ({
     } catch (error) {
       console.error("Error fetching messages:", error);
     }
-  };  
+  };
 
   const handleEdit = async (): Promise<void> => {
     if (editing.index === null) return;
-  
+
     try {
       const messageId = messages[editing.index].message_id;
       const response = await fetch(`/api/messages/${messageId}`, {
@@ -85,11 +87,19 @@ const Main: React.FC<mainProps> = ({
     } catch (error) {
       console.error("Error sending message", error);
     }
-  };  
+  };
 
   useEffect(() => {
-    fetchMessages();
+    if (selectedFriend) {
+      fetchMessages(); 
+      setShowFriendDetails(false)
+    }
   }, [selectedFriend]);
+  
+
+  const detailsManage = async () => {
+    setShowFriendDetails(!showFriendDetails);
+  };
 
   const fetchMessages = async () => {
     if (!selectedFriend) return;
@@ -169,43 +179,59 @@ const Main: React.FC<mainProps> = ({
   return (
     <div className="main-container">
       <div className="main-header">
-        {selectedFriend ? selectedFriend.username : "Select a friend"}
+        {selectedFriend ? (
+          <span onClick={() => detailsManage()}>{selectedFriend.username}</span>
+        ) : (
+          <span>Select a friend</span>
+        )}
         <button onClick={handleLogout}>Logout</button>
       </div>
+      {showFriendDetails && selectedFriend && (
+        <FriendDetails friendId={selectedFriend.user_id} />
+      )}
       <div className="main-messages">
         {messages.length > 0 ? (
-          messages.map((msg, index) => ( // next time, try replacing index with message_id
-            <div
-              key={index}
-              className={
-                msg.user_id === user.user_id ? "friend-message" : "user-message"  //pay attention to this line, it has fried my brain
-              }
-            >
-              <span>{msg.message}</span>
-
+          messages.map(
+            (
+              msg,
+              index
+            ) => (
               <div
-                className="menu-dots"
-                onClick={() => handleMenuToggle(index)}
+                key={index}
+                className={
+                  msg.user_id === user.user_id
+                    ? "friend-message"
+                    : "user-message" 
+                }
               >
-                &#x22EE;
-              </div>
+                <span>{msg.message}</span>
 
-              {showMenu === index && (
-                <div className="dropdown-menu">
-                  <button
-                    onClick={() => {
-                      setEditing({ isEditing: true, index });
-                      setEditedMessage(msg.message);
-                      setShowMenu(null);
-                    }}
-                  >
-                    Edit
-                  </button>
-                  <button onClick={() => handleDelete(msg.message_id!)}>Delete</button>
+                <div
+                  className="menu-dots"
+                  onClick={() => handleMenuToggle(index)}
+                >
+                  &#x22EE;
                 </div>
-              )}
-            </div>
-          ))
+
+                {showMenu === index && (
+                  <div className="dropdown-menu">
+                    <button
+                      onClick={() => {
+                        setEditing({ isEditing: true, index });
+                        setEditedMessage(msg.message);
+                        setShowMenu(null);
+                      }}
+                    >
+                      Edit
+                    </button>
+                    <button onClick={() => handleDelete(msg.message_id!)}>
+                      Delete
+                    </button>
+                  </div>
+                )}
+              </div>
+            )
+          )
         ) : (
           <div>You are so lonely</div>
         )}
@@ -215,9 +241,9 @@ const Main: React.FC<mainProps> = ({
           onSubmit={(e) => {
             e.preventDefault();
             if (editing.isEditing) {
-              handleEdit(); 
+              handleEdit();
             } else {
-              handleSendMessage(e); 
+              handleSendMessage(e);
             }
           }}
         >

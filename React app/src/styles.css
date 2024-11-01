@@ -409,3 +409,25 @@
   padding: 5px 10px; /* Padding for the button */
   cursor: pointer; /* Change cursor to pointer */
 }
+
+.friend-details {
+  width: 30%; /* Width of 30% of the main container */
+  height: 30%; /* Height of 30% of the main container */
+  background-color: #f7f7f7; /* Greyish cream background */
+  color: #333; /* Black text */
+  border-radius: 8px; /* Slightly rounded corners */
+  padding: 20px; /* Padding inside the component */
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); /* Subtle shadow for depth */
+  position: absolute; /* Position to overlay on the main section */
+  top: 20%; /* Position it in the center vertically */
+  left: 20%; /* Position it in the center horizontally */
+  transform: translate(-50%, -50%); /* Centering effect */
+  z-index: 10; /* Ensure it appears above other content */
+}
+
+.friend-details > div {
+  background-color: white; /* White background for inner divs */
+  padding: 10px; /* Padding for inner divs */
+  margin: 10px 0; /* Margin between inner divs */
+  border-radius: 5px; /* Slightly rounded corners for inner divs */
+}
