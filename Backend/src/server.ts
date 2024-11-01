@@ -1,8 +1,7 @@
-import express, {
-  Request,
-  Response,
-  NextFunction,
-} from "express";
+// After registeration assign the user a random UID (unique ID)
+// User can edit their profile in the main.jsx section to change their username or their bio
+
+import express, { Request, Response, NextFunction } from "express";
 import bodyParser from "body-parser";
 import pg, { QueryResult } from "pg";
 import bcrypt from "bcrypt";
@@ -60,6 +59,7 @@ declare global {
       user_id: number;
       username: string;
       password?: string;
+      UID?: number;
     }
   }
 }
@@ -102,7 +102,9 @@ app.get("/app", (req: Request, res: Response) => {
 app.get("/logout", (req: Request, res: Response, next: NextFunction) => {
   req.logout((err) => {
     if (err) {
-      return res.status(500).json({ message: "Error during logout", error: err });
+      return res
+        .status(500)
+        .json({ message: "Error during logout", error: err });
     }
     res.status(200).json("/login");
   });
@@ -146,25 +148,32 @@ app.post("/register", async (req: Request, res: Response) => {
       [username]
     );
     if (checkResult.rows.length > 0) {
-      res.status(400).json({ success: false, message: 'Username already exists' });
+      res
+        .status(400)
+        .json({ success: false, message: "Username already exists" });
       return;
     } else {
       bcrypt.hash(password, saltRounds, async (err, hash) => {
         if (err) {
           console.error("Error hashing password:", err);
-          return res.status(500).json({ success: false, message: 'Internal server error' });
+          return res
+            .status(500)
+            .json({ success: false, message: "Internal server error" });
         } else {
+          const UID: number = Math.floor(Math.random() * 100000000);
           const result: QueryResult<Express.User> = await db.query(
-            "INSERT INTO users (username, password) VALUES ($1, $2) RETURNING *",
-            [username, hash]
+            "INSERT INTO users (username, password, UID) VALUES ($1, $2, $3) RETURNING username, password",
+            [username, hash, UID]
           );
           const newUser = result.rows[0];
           req.login(newUser, (err: Error) => {
             if (err) {
               console.error("Error during login:", err);
-              return res.status(500).json({ success: false, message: 'Login error' });
+              return res
+                .status(500)
+                .json({ success: false, message: "Login error" });
             }
-            res.json({ success: true, redirect: '/app' });
+            res.json({ success: true, redirect: "/app" });
           });
         }
       });
@@ -176,7 +185,6 @@ app.post("/register", async (req: Request, res: Response) => {
 
 app.get("/auth-status", async (req: Request, res: Response) => {
   if (req.isAuthenticated()) {
-    console.log(req.user.user_id);
     res.json({ authenticated: true, user: req.user });
   } else {
     res.json({ authenticated: false, user: null });
@@ -186,7 +194,6 @@ app.get("/auth-status", async (req: Request, res: Response) => {
 app.get("/api/friends", async (req: Request, res: Response) => {
   if (req.user) {
     const userId = req.user.user_id;
-    console.log(userId);
     try {
       const friends: QueryResult<Express.User[]> = await db.query(
         `SELECT u.user_id, u.username 
@@ -227,60 +234,79 @@ app.get("/api/messages", async (req: Request, res: Response) => {
   }
 });
 
-interface AddFriendRequest{
-  friendName: string;
+interface AddFriendRequest {
+  friendUID: number;
 }
 
-app.post("/api/addFriend", async (req: Request<{}, {}, AddFriendRequest>, res: Response) : Promise<void> => {
-  if (req.user) {
-    const { friendName } = req.body;
-    const userId = req.user.user_id;
-    if (!friendName) {
-      res.status(400).json({ error: "Friend's username is required" });
-      return;
-    }
-    try {
-      const friendResult: QueryResult<Express.User> = await db.query(
-        "SELECT user_id FROM users WHERE username = $1",
-        [friendName]
-      );
-      if (friendResult.rows.length === 0) {
-        res.status(404).json({ error: "Friend not found" });
+app.post(
+  "/api/addFriend",
+  async (
+    req: Request<{}, {}, AddFriendRequest>,
+    res: Response
+  ): Promise<void> => {
+    if (req.user) {
+      const { friendUID } = req.body;
+      const userId = req.user.user_id;
+      if (!friendUID) {
+        res.status(400).json({ error: "Friend's UID is required" });
         return;
       }
-      const friendId = friendResult.rows[0].user_id;
-      const result: QueryResult<friends> = await db.query(
-        "INSERT INTO friend (user_id, friend_user_id) VALUES ($1, $2) RETURNING *",
-        [userId, friendId]
-      );
-      res.json(result.rows[0]);
-    } catch (error) {
-      console.error("Error adding friend", error);
-      res.status(500).json({ error: "Failed to add friend." });
-    }
-  }
-});
+      try {
+        const friendResult: QueryResult<Express.User> = await db.query(
+          "SELECT user_id FROM users WHERE UID = $1",
+          [friendUID]
+        );
+        if (friendResult.rows.length === 0) {
+          res.status(404).json({ error: "Friend not found" });
+          return;
+        }
+        const friendId = friendResult.rows[0].user_id;
 
-app.post("/api/sendMessage", async (req: Request<{}, {}, Message>, res: Response) : Promise<void> => {
-  if (req.user) {
-    const {message, friend_id} = req.body;
-    const userId = req.user.user_id;
-    if (!message || !friend_id) {
-      res.status(400).json({ error: "Message and friendId are required." });
-      return;
-    }
-    try {
-      const result: QueryResult<Message> = await db.query(
-        "INSERT INTO data (user_id, friend_id, message, time) VALUES ($1, $2, $3, NOW()) RETURNING *",
-        [userId, friend_id, message]
-      );
-      res.json(result.rows[0]);
-    } catch (error) {
-      console.error("Error sending message:", error);
-      res.status(500).json({ error: "Failed to send a message." });
+        const existingFriend: QueryResult = await db.query(
+          "SELECT * FROM friend WHERE user_id = $1 AND friend_user_id = $2",
+          [userId, friendId]
+        );
+        if (existingFriend.rows.length > 0) {
+          res.status(400).json({ error: "Friendship already exists" });
+          return;
+        }
+
+        const result: QueryResult<friends> = await db.query(
+          "INSERT INTO friend (user_id, friend_user_id) VALUES ($1, $2) RETURNING *",
+          [userId, friendId]
+        );
+        res.json(result.rows[0]);
+      } catch (error) {
+        console.error("Error adding friend", error);
+        res.status(500).json({ error: "Failed to add friend." });
+      }
     }
   }
-});
+);
+
+app.post(
+  "/api/sendMessage",
+  async (req: Request<{}, {}, Message>, res: Response): Promise<void> => {
+    if (req.user) {
+      const { message, friend_id } = req.body;
+      const userId = req.user.user_id;
+      if (!message || !friend_id) {
+        res.status(400).json({ error: "Message and friendId are required." });
+        return;
+      }
+      try {
+        const result: QueryResult<Message> = await db.query(
+          "INSERT INTO data (user_id, friend_id, message, time) VALUES ($1, $2, $3, NOW()) RETURNING *",
+          [userId, friend_id, message]
+        );
+        res.json(result.rows[0]);
+      } catch (error) {
+        console.error("Error sending message:", error);
+        res.status(500).json({ error: "Failed to send a message." });
+      }
+    }
+  }
+);
 
 app.delete("/api/messages/:id", async (req: Request, res: Response) => {
   if (!req.isAuthenticated()) {
@@ -289,7 +315,10 @@ app.delete("/api/messages/:id", async (req: Request, res: Response) => {
   }
   const messageId = parseInt(req.params.id, 10);
   try {
-    await db.query("DELETE FROM data WHERE message_id = $1 AND user_id = $2", [messageId, req.user.user_id]);
+    await db.query("DELETE FROM data WHERE message_id = $1 AND user_id = $2", [
+      messageId,
+      req.user.user_id,
+    ]);
     res.status(204).send();
   } catch (err) {
     console.error(err);
@@ -305,7 +334,7 @@ app.patch("/api/messages/:id", async (req: Request, res: Response) => {
   const messageId = parseInt(req.params.id, 10);
   const { editedMessage } = req.body as { editedMessage: string };
   try {
-    const result: QueryResult<Message>= await db.query(
+    const result: QueryResult<Message> = await db.query(
       "UPDATE data SET message = $1 WHERE message_id = $2 AND user_id = $3 RETURNING *",
       [editedMessage, messageId, req.user.user_id]
     );
@@ -318,6 +347,52 @@ app.patch("/api/messages/:id", async (req: Request, res: Response) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Error editing message" });
+  }
+});
+
+app.patch("/api/editUsername", async (req: Request, res: Response) => {
+  if (!req.isAuthenticated()) {
+    res.status(401).json({ message: "Unauthorized" });
+    return;
+  }
+  const userId = req.user.user_id;
+  const { newusername } = req.body as { newusername : string };
+  try {
+    const result: QueryResult<Message> = await db.query(
+      "UPDATE users SET username = $1 WHERE user_id = $2 RETURNING *",
+      [newusername, userId]
+    );
+    if (result.rowCount === 0) {
+      res.status(404).json({ text: "User not found" });
+      return;
+    }
+    res.status(200).json({text: "Username successfully updated"});
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({text: "Error encountered" });
+  }
+});
+
+app.patch("/api/editBio", async (req: Request, res: Response) => {
+  if (!req.isAuthenticated()) {
+    res.status(401).json({ message: "Unauthorized" });
+    return;
+  }
+  const userId = req.user.user_id;
+  const { newBio } = req.body as { newBio: string };
+  try {
+    const result: QueryResult<Message> = await db.query(
+      "UPDATE users SET bio = $1 WHERE user_id = $2 RETURNING *",
+      [newBio, userId]
+    );
+    if (result.rowCount === 0) {
+      res.status(404).json({ text: "User not found" });
+      return;
+    }
+    res.status(200).json({text: "Bio successfully updated"});
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({text: "Error encountered" });
   }
 });
 
@@ -355,7 +430,9 @@ passport.use(
 );
 
 app.get("*", (req, res) => {
-  res.sendFile(path.join(__dirname, "..", ".." ,"React app", "build", "index.html"));
+  res.sendFile(
+    path.join(__dirname, "..", "..", "React app", "build", "index.html")
+  );
 });
 
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
@@ -367,11 +444,12 @@ passport.serializeUser((user: Express.User, done) => {
   done(null, user.user_id);
 });
 
-passport.deserializeUser(async (id: Number, done) => {
+passport.deserializeUser(async (id: number, done) => {
   try {
-    const result: QueryResult<Express.User> = await db.query("SELECT * FROM users WHERE user_id = $1", [
-      id,
-    ]);
+    const result: QueryResult<Express.User> = await db.query(
+      "SELECT * FROM users WHERE user_id = $1",
+      [id]
+    );
     const user = result.rows[0];
     done(null, user);
   } catch (err) {

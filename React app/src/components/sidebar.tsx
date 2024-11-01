@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from "react";
+import EditProfile from "./editProfile";
 
 interface User {
   user_id: number;
   username: string;
+  bio?: string;
 }
 
 interface sideBarProps {
   user: User | null;
   setSelectedFriend: (selectedFriend: User) => void;
+  showMain: boolean;
   setShowmain: (showMain: boolean) => void;
 }
 
@@ -15,15 +18,21 @@ const Sidebar: React.FC<sideBarProps> = ({
   user,
   setSelectedFriend,
   setShowmain,
+  showMain
 }) => {
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [friends, setFriends] = useState<User[]>([]);
+  const [showEdit, setShowEdit] = useState<boolean>(false);
 
   const filteredFriends = searchTerm
     ? friends.filter((friend) =>
         friend.username.toLowerCase().startsWith(searchTerm.toLowerCase())
       )
     : friends;
+
+  const switchEditProfile = async () => {
+    setShowEdit(!showEdit);
+  }
 
   const fetchFriends = async () => {
     try {
@@ -39,7 +48,7 @@ const Sidebar: React.FC<sideBarProps> = ({
   };
 
   const handleShowAddFriend = () => {
-    setShowmain(false);
+    setShowmain(!showMain);
   };
 
   useEffect(() => {
@@ -76,6 +85,8 @@ const Sidebar: React.FC<sideBarProps> = ({
           )}
         </ul>
       </div>
+      <button className="edit-profile-button" onClick={switchEditProfile}>Edit Profile</button>
+      {showEdit === true ? <EditProfile username={user?.username} bio={user?.bio} switchEditProfile={switchEditProfile}/> : null}
     </div>
   );
 };

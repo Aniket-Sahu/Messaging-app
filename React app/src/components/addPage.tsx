@@ -1,16 +1,18 @@
 import React, { useState } from "react";
 
 interface AddPageProps {
-    handleAddFriend: (friendName: string) => void;
+    handleAddFriend: (friendUID: number | undefined) => void;
+    setShowmain: (showMain: boolean) => void;
 }
 
-const addPage: React.FC<AddPageProps> = ({handleAddFriend}) => {
-    const [friendName, setFriendName] = useState<string>("");
+const addPage: React.FC<AddPageProps> = ({handleAddFriend, setShowmain}) => {
+    const [friendUID, setFriendUID] = useState<number | undefined>();
 
     const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
-        handleAddFriend(friendName); 
-        setFriendName(""); 
+        handleAddFriend(friendUID); 
+        setFriendUID(friendUID); 
+        setShowmain(true);
     };
 
     return (
@@ -19,11 +21,11 @@ const addPage: React.FC<AddPageProps> = ({handleAddFriend}) => {
             <form onSubmit={handleSubmit}>
                 <input 
                     type="text" 
-                    id="friendName"         
-                    name="friendName"        
-                    value={friendName} 
-                    onChange={(e) => setFriendName(e.target.value)} 
-                    placeholder="Enter friend's name" 
+                    id="friendUID"         
+                    name="friendUID"        
+                    value={friendUID}
+                    onChange={(e) => setFriendUID(Number(e.target.value))} 
+                    placeholder="Enter friend's UID" 
                 />
                 <button 
                     type="submit" 

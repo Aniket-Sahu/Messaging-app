@@ -68,7 +68,7 @@
 }
 
 .sidebar-container {
-  position: absolute;
+  position: relative;
   top: 0;
   left: 0;
   width: 23%;
@@ -78,6 +78,21 @@
   flex-direction: column;
   padding: 10px;
   box-shadow: 2px 0px 5px rgba(0, 0, 0, 0.1);
+}
+
+.edit-profile-button {
+  margin-top: auto;
+  padding: 8px 16px;
+  background-color: #007bff; 
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  align-self: flex-start; 
+}
+
+.edit-profile-button:hover {
+  background-color: #0056b3;
 }
 
 .sidebar-header {
@@ -329,4 +344,68 @@
 
 .addpage-container button:hover {
   background-color: #0056b3;
+}
+
+.edit-profile-button {
+  margin-top: auto;
+  padding: 8px 16px;
+  background-color: #28a745;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  align-self: flex-start;
+}
+
+.edit-profile-button:hover {
+  background-color: #218838;
+}
+
+.edit-profile-container {
+  position: absolute; /* Position it absolutely within the sidebar */
+  bottom: 0; /* Align to the bottom */
+  left: 0; /* Align to the left */
+  width: 90%; /* Occupy 75% of the sidebar width */
+  height: 45%; /* Set height to 25% of the sidebar height */
+  background-color: #fff; /* Background color for visibility */
+  padding: 10px; /* Padding for the inner content */
+  box-shadow: 0px -2px 5px rgba(0, 0, 0, 0.2); /* Optional shadow for depth */
+  display: flex; /* Use flexbox for centering */
+  flex-direction: column; /* Stack children vertically */
+  justify-content: center; /* Center vertically */
+  align-items: center; /* Center horizontally */
+}
+
+.edit-profile-container h2 {
+  margin: 5px 0; /* Adjust margin for the headings */
+}
+
+.edit-profile-container input {
+  width: 80%; /* Input field width */
+  padding: 8px; /* Padding for input */
+  margin-bottom: 10px; /* Spacing between input and button */
+}
+
+.edit-profile-container button {
+  padding: 8px 16px; /* Button padding */
+  background-color: #28a745; /* Button color */
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.edit-profile-container button:hover {
+  background-color: #218838; /* Darker shade on hover */
+}
+
+.back-button {
+  position: absolute; /* Positioning it absolutely */
+  top: 10px; /* Distance from the top */
+  left: 10px; /* Distance from the left */
+  color: black; /* Black text */
+  border: none; /* No border */
+  border-radius: 5px; /* Rounded corners */
+  padding: 5px 10px; /* Padding for the button */
+  cursor: pointer; /* Change cursor to pointer */
 }

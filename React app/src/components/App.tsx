@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Sidebar from './sidebar';
 import Main from './main';
 import AddPage from './addPage';
+import { type } from 'os';
   
 interface friends {
     user_id: number;
@@ -51,7 +52,11 @@ const App: React.FC = () =>{
         checkAuthStatus();
     }, []);
 
-    const handleAddFriend = async (friendName: string) => {
+    const handleAddFriend = async (friendUID: number | undefined): Promise<void>=> {
+        if(friendUID === undefined){
+            console.warn("Friend UID can't be null");
+            return;
+        }
         try {
             const response = await fetch('/api/addFriend', {
                 method: 'POST',
@@ -59,7 +64,7 @@ const App: React.FC = () =>{
                     'Content-Type': 'application/json',
                 },
                 credentials: 'include',
-                body: JSON.stringify({friendName: friendName}),
+                body: JSON.stringify({ friendUID }),
             });
             const data: addFriendResponse = await response.json();
             if (response.ok) {
@@ -79,7 +84,7 @@ const App: React.FC = () =>{
 
     return (
         <div className="app-container">
-            <Sidebar user={user} setSelectedFriend={setSelectedFriend} setShowmain={setShowmain} />
+            <Sidebar user={user} setSelectedFriend={setSelectedFriend} showMain={showMain} setShowmain={setShowmain} />
             {showMain ? (
                 user ? ( 
                     <Main 
@@ -91,7 +96,7 @@ const App: React.FC = () =>{
                     <div>No user found. Please log in.</div> 
                 )
             ) : (
-                <AddPage handleAddFriend={handleAddFriend}/>
+                <AddPage handleAddFriend={handleAddFriend} setShowmain={setShowmain}/>
             )}
         </div>
     );
