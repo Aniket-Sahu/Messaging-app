@@ -1,6 +1,3 @@
-// Next feature is too add a simple feature to see your friend's bio (and info)
-// Then somehow incorporate the friend request funtionality 
-
 import express, { Request, Response, NextFunction } from "express";
 import bodyParser from "body-parser";
 import pg, { QueryResult } from "pg";
@@ -162,7 +159,7 @@ app.post("/register", async (req: Request, res: Response) => {
         } else {
           const UID: number = Math.floor(Math.random() * 100000000);
           const result: QueryResult<Express.User> = await db.query(
-            "INSERT INTO users (username, password, UID) VALUES ($1, $2, $3) RETURNING username, password",
+            "INSERT INTO users (username, password, UID) VALUES ($1, $2, $3) RETURNING user_id,username",
             [username, hash, UID]
           );
           const newUser = result.rows[0];
@@ -242,15 +239,15 @@ app.get("/api/getDetails", async (req: Request, res: Response) => {
       return;
     }
     try {
-      const result: QueryResult<{ username: string; bio: string }> = await db.query(
-        "SELECT username, bio FROM users WHERE user_id = $1",
-        [friendId]
-      );
+      const result: QueryResult<{ username: string; bio: string }> =
+        await db.query("SELECT username, bio FROM users WHERE user_id = $1", [
+          friendId,
+        ]);
       if (result.rows.length === 0) {
         res.status(404).json({ message: "Friend not found" });
         return;
       }
-      res.json({ details: result.rows[0]});
+      res.json({ details: result.rows[0] });
     } catch (err) {
       console.error(err);
       res.status(500).json({ message: "Error fetching details" });
@@ -263,7 +260,7 @@ interface AddFriendRequest {
 }
 
 app.post(
-  "/api/addFriend",
+  "/api/sendFriendReq",
   async (
     req: Request<{}, {}, AddFriendRequest>,
     res: Response
@@ -285,7 +282,12 @@ app.post(
           return;
         }
         const friendId = friendResult.rows[0].user_id;
-
+        if (userId === friendId) {
+          res
+            .status(400)
+            .json({ error: "You cannot send a friend request to yourself" });
+          return;
+        }
         const existingFriend: QueryResult = await db.query(
           "SELECT * FROM friend WHERE user_id = $1 AND friend_user_id = $2",
           [userId, friendId]
@@ -294,9 +296,17 @@ app.post(
           res.status(400).json({ error: "Friendship already exists" });
           return;
         }
+        const existingRequest: QueryResult = await db.query(
+          "SELECT * FROM friend_req WHERE user_id = $1 AND friend_id = $2 AND status = 'pending'",
+          [userId, friendId]
+        );
+        if (existingRequest.rows.length > 0) {
+          res.status(400).json({ error: "Friend request already sent" });
+          return;
+        }
 
         const result: QueryResult<friends> = await db.query(
-          "INSERT INTO friend (user_id, friend_user_id) VALUES ($1, $2) RETURNING *",
+          "INSERT INTO friend_req (user_id, friend_id) VALUES ($1, $2) RETURNING *",
           [userId, friendId]
         );
         res.json(result.rows[0]);
@@ -307,6 +317,82 @@ app.post(
     }
   }
 );
+
+app.get("/friendReqs", async (req: Request, res: Response): Promise<void> => {
+  if (req.user) {
+    const userId = req.user.user_id;
+    try {
+      const friendRequests: QueryResult = await db.query(
+        `SELECT friend_req.*, users.username 
+           FROM friend_req 
+           JOIN users ON friend_req.user_id = users.user_id 
+           WHERE friend_req.friend_id = $1 AND friend_req.status = 'pending'`,
+        [userId]
+      );
+      res.json(friendRequests.rows);
+    } catch (error) {
+      console.error("Error fetching friend requests", error);
+      res.status(500).json({ error: "Failed to fetch friend requests." });
+    }
+  } else {
+    res.status(401).json({ error: "Unauthorized" });
+  }
+});
+
+app.post('/api/acceptRequest/:id', async (req, res) => {
+  const { id } = req.params;
+  if (!id) {
+    res.status(400).json({ message: 'Invalid request ID' });
+    return;
+  }
+  try {
+    const result = await db.query(`
+      UPDATE friend_req
+      SET status = 'accepted'
+      WHERE req_id = $1
+      RETURNING *;
+    `, [id]);
+    if (result.rowCount === 0) {
+      res.status(404).json({ message: 'Friend request not found' });
+      return;
+    }
+    const { user_id, friend_id } = result.rows[0];
+    const insertFriendshipQuery = `
+      INSERT INTO friend (user_id, friend_user_id)
+      VALUES ($1, $2), ($2, $1)
+      ON CONFLICT DO NOTHING;
+    `;
+    await db.query(insertFriendshipQuery, [user_id, friend_id]);
+    res.status(200).json({ message: 'Friend request accepted successfully' });
+  } catch (error) {
+    console.error('Error accepting friend request:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+app.post('/api/rejectRequest/:id', async (req, res) => {
+  const { id } = req.params;
+  if (!id) {
+    res.status(400).json({ message: 'Invalid request ID' });
+    return;
+  }
+  try {
+    const result = await db.query(`
+      UPDATE friend_req
+      SET status = 'rejected'
+      WHERE req_id = $1
+      RETURNING *;
+    `, [id]);
+    if (result.rowCount === 0) {
+      res.status(404).json({ message: 'Friend request not found' });
+      return;
+    }
+    res.status(200).json({ message: 'Friend request rejected successfully' });
+  } catch (error) {
+    console.error('Error accepting friend request:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
 
 app.post(
   "/api/sendMessage",
@@ -380,7 +466,7 @@ app.patch("/api/editUsername", async (req: Request, res: Response) => {
     return;
   }
   const userId = req.user.user_id;
-  const { newusername } = req.body as { newusername : string };
+  const { newusername } = req.body as { newusername: string };
   try {
     const result: QueryResult<Message> = await db.query(
       "UPDATE users SET username = $1 WHERE user_id = $2 RETURNING *",
@@ -390,10 +476,10 @@ app.patch("/api/editUsername", async (req: Request, res: Response) => {
       res.status(404).json({ text: "User not found" });
       return;
     }
-    res.status(200).json({text: "Username successfully updated"});
+    res.status(200).json({ text: "Username successfully updated" });
   } catch (err) {
     console.error(err);
-    res.status(500).json({text: "Error encountered" });
+    res.status(500).json({ text: "Error encountered" });
   }
 });
 
@@ -413,10 +499,10 @@ app.patch("/api/editBio", async (req: Request, res: Response) => {
       res.status(404).json({ text: "User not found" });
       return;
     }
-    res.status(200).json({text: "Bio successfully updated"});
+    res.status(200).json({ text: "Bio successfully updated" });
   } catch (err) {
     console.error(err);
-    res.status(500).json({text: "Error encountered" });
+    res.status(500).json({ text: "Error encountered" });
   }
 });
 

@@ -11,6 +11,16 @@ interface mainProps {
   user: User;
   selectedFriend: User | null;
   setAuthenticated: (value: boolean) => void;
+  friendReqs: friendReq[];
+}
+
+interface friendReq {
+  req_id?: number;
+  username: string;
+  user_id: number;
+  friend_id: number;
+  status: "pending" | "accepted" | "rejected";
+  timestamp: Date;
 }
 
 interface Message {
@@ -25,6 +35,7 @@ const Main: React.FC<mainProps> = ({
   user,
   selectedFriend,
   setAuthenticated,
+  friendReqs,
 }) => {
   const navigate = useNavigate();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -32,6 +43,7 @@ const Main: React.FC<mainProps> = ({
   const [showMenu, setShowMenu] = useState<number | null>(null);
   const [showFriendDetails, setShowFriendDetails] = useState<boolean>(false);
   const [editedMessage, setEditedMessage] = useState<string>("");
+  const [showFriendReqs, setShowFriendReqs] = useState<boolean>(false);
   const [editing, setEditing] = useState<{
     isEditing: boolean;
     index: number | null;
@@ -91,11 +103,10 @@ const Main: React.FC<mainProps> = ({
 
   useEffect(() => {
     if (selectedFriend) {
-      fetchMessages(); 
-      setShowFriendDetails(false)
+      fetchMessages();
+      setShowFriendDetails(false);
     }
   }, [selectedFriend]);
-  
 
   const detailsManage = async () => {
     setShowFriendDetails(!showFriendDetails);
@@ -176,6 +187,44 @@ const Main: React.FC<mainProps> = ({
     }
   };
 
+  const toggleDropdown = async () => {
+    setShowFriendReqs(!showFriendReqs);
+  };
+
+  const acceptReq = async (id: number | undefined) => {
+    if (id === undefined) {
+      console.warn("The friend req is invalid");
+    }
+    setShowFriendReqs(false);
+    try {
+      const response = await fetch(`/api/acceptRequest/${id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+      });
+
+    } catch (error) {
+      console.error("Error accepting friend request", error);
+    }
+  };
+
+  const rejectReq = async (id: number | undefined) => {
+    if (id === undefined) {
+      console.warn("The friend req is invalid");
+    }
+    setShowFriendReqs(false);
+    try {
+      const response = await fetch(`/api/rejectRequest/${id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+      });
+
+    } catch (error) {
+      console.error("Error rejecting friend request", error);
+    }
+  };
+
   return (
     <div className="main-container">
       <div className="main-header">
@@ -184,6 +233,28 @@ const Main: React.FC<mainProps> = ({
         ) : (
           <span>Select a friend</span>
         )}
+        <div className="friend-requests-container">
+          <button onClick={toggleDropdown}>Friend Requests</button>
+          {showFriendReqs && (
+            <div className="dropdown-menu">
+              {friendReqs.length > 0 ? (
+                friendReqs.map((req) => (
+                  <div key={req.req_id} className="dropdown-item">
+                    <p>{`${req.username} sent you a Friend Request`}</p>
+                    <button onClick={() => acceptReq(req.req_id)}>
+                      Accept
+                    </button>
+                    <button onClick={() => rejectReq(req.req_id)}>
+                      Reject
+                    </button>
+                  </div>
+                ))
+              ) : (
+                <p>No friend requests</p>
+              )}
+            </div>
+          )}
+        </div>
         <button onClick={handleLogout}>Logout</button>
       </div>
       {showFriendDetails && selectedFriend && (
@@ -191,47 +262,40 @@ const Main: React.FC<mainProps> = ({
       )}
       <div className="main-messages">
         {messages.length > 0 ? (
-          messages.map(
-            (
-              msg,
-              index
-            ) => (
+          messages.map((msg, index) => (
+            <div
+              key={index}
+              className={
+                msg.user_id === user.user_id ? "friend-message" : "user-message"
+              }
+            >
+              <span>{msg.message}</span>
+
               <div
-                key={index}
-                className={
-                  msg.user_id === user.user_id
-                    ? "friend-message"
-                    : "user-message" 
-                }
+                className="menu-dots"
+                onClick={() => handleMenuToggle(index)}
               >
-                <span>{msg.message}</span>
-
-                <div
-                  className="menu-dots"
-                  onClick={() => handleMenuToggle(index)}
-                >
-                  &#x22EE;
-                </div>
-
-                {showMenu === index && (
-                  <div className="dropdown-menu">
-                    <button
-                      onClick={() => {
-                        setEditing({ isEditing: true, index });
-                        setEditedMessage(msg.message);
-                        setShowMenu(null);
-                      }}
-                    >
-                      Edit
-                    </button>
-                    <button onClick={() => handleDelete(msg.message_id!)}>
-                      Delete
-                    </button>
-                  </div>
-                )}
+                &#x22EE;
               </div>
-            )
-          )
+
+              {showMenu === index && (
+                <div className="dropdown-menu">
+                  <button
+                    onClick={() => {
+                      setEditing({ isEditing: true, index });
+                      setEditedMessage(msg.message);
+                      setShowMenu(null);
+                    }}
+                  >
+                    Edit
+                  </button>
+                  <button onClick={() => handleDelete(msg.message_id!)}>
+                    Delete
+                  </button>
+                </div>
+              )}
+            </div>
+          ))
         ) : (
           <div>You are so lonely</div>
         )}

@@ -431,3 +431,62 @@
   margin: 10px 0; /* Margin between inner divs */
   border-radius: 5px; /* Slightly rounded corners for inner divs */
 }
+
+.friend-requests-container {
+  position: relative;
+  margin-right: 10px; /* Adjust to space it correctly */
+}
+
+.friend-requests-button {
+  padding: 5px 10px;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.friend-requests-button:hover {
+  background-color: #0056b3;
+}
+
+.dropdown-menu {
+  position: absolute;
+  top: 100%; /* Positions below the button */
+  left: 0;
+  background-color: white;
+  border: 1px solid #ccc;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  padding: 8px;
+  z-index: 1000;
+  min-width: 200px; /* Adjust width as needed */
+}
+
+.dropdown-item {
+  padding: 5px 10px;
+  display: flex;
+  justify-content: space-between;
+  border-bottom: 1px solid #eee;
+}
+
+.dropdown-item button {
+  margin-left: 5px;
+  padding: 3px 6px;
+  background-color: #28a745;
+  color: white;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.dropdown-item button:hover {
+  background-color: #218838;
+}
+
+.dropdown-item button:nth-child(2) {
+  background-color: #dc3545;
+}
+
+.dropdown-item button:nth-child(2):hover {
+  background-color: #c82333;
+}

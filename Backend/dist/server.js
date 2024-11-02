@@ -1,5 +1,3 @@
-// Next feature is too add a simple feature to see your friend's bio (and info)
-// Then somehow incorporate the friend request funtionality 
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -123,7 +121,7 @@ app.post("/register", (req, res) => __awaiter(void 0, void 0, void 0, function* 
                 }
                 else {
                     const UID = Math.floor(Math.random() * 100000000);
-                    const result = yield db.query("INSERT INTO users (username, password, UID) VALUES ($1, $2, $3) RETURNING username, password", [username, hash, UID]);
+                    const result = yield db.query("INSERT INTO users (username, password, UID) VALUES ($1, $2, $3) RETURNING user_id,username", [username, hash, UID]);
                     const newUser = result.rows[0];
                     req.login(newUser, (err) => {
                         if (err) {
@@ -194,7 +192,9 @@ app.get("/api/getDetails", (req, res) => __awaiter(void 0, void 0, void 0, funct
             return;
         }
         try {
-            const result = yield db.query("SELECT username, bio FROM users WHERE user_id = $1", [friendId]);
+            const result = yield db.query("SELECT username, bio FROM users WHERE user_id = $1", [
+                friendId,
+            ]);
             if (result.rows.length === 0) {
                 res.status(404).json({ message: "Friend not found" });
                 return;
@@ -207,7 +207,7 @@ app.get("/api/getDetails", (req, res) => __awaiter(void 0, void 0, void 0, funct
         }
     }
 }));
-app.post("/api/addFriend", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+app.post("/api/sendFriendReq", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     if (req.user) {
         const { friendUID } = req.body;
         const userId = req.user.user_id;
@@ -222,18 +222,103 @@ app.post("/api/addFriend", (req, res) => __awaiter(void 0, void 0, void 0, funct
                 return;
             }
             const friendId = friendResult.rows[0].user_id;
+            if (userId === friendId) {
+                res
+                    .status(400)
+                    .json({ error: "You cannot send a friend request to yourself" });
+                return;
+            }
             const existingFriend = yield db.query("SELECT * FROM friend WHERE user_id = $1 AND friend_user_id = $2", [userId, friendId]);
             if (existingFriend.rows.length > 0) {
                 res.status(400).json({ error: "Friendship already exists" });
                 return;
             }
-            const result = yield db.query("INSERT INTO friend (user_id, friend_user_id) VALUES ($1, $2) RETURNING *", [userId, friendId]);
+            const existingRequest = yield db.query("SELECT * FROM friend_req WHERE user_id = $1 AND friend_id = $2 AND status = 'pending'", [userId, friendId]);
+            if (existingRequest.rows.length > 0) {
+                res.status(400).json({ error: "Friend request already sent" });
+                return;
+            }
+            const result = yield db.query("INSERT INTO friend_req (user_id, friend_id) VALUES ($1, $2) RETURNING *", [userId, friendId]);
             res.json(result.rows[0]);
         }
         catch (error) {
             console.error("Error adding friend", error);
             res.status(500).json({ error: "Failed to add friend." });
         }
+    }
+}));
+app.get("/friendReqs", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    if (req.user) {
+        const userId = req.user.user_id;
+        try {
+            const friendRequests = yield db.query(`SELECT friend_req.*, users.username 
+           FROM friend_req 
+           JOIN users ON friend_req.user_id = users.user_id 
+           WHERE friend_req.friend_id = $1 AND friend_req.status = 'pending'`, [userId]);
+            res.json(friendRequests.rows);
+        }
+        catch (error) {
+            console.error("Error fetching friend requests", error);
+            res.status(500).json({ error: "Failed to fetch friend requests." });
+        }
+    }
+    else {
+        res.status(401).json({ error: "Unauthorized" });
+    }
+}));
+app.post('/api/acceptRequest/:id', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { id } = req.params;
+    if (!id) {
+        res.status(400).json({ message: 'Invalid request ID' });
+        return;
+    }
+    try {
+        const result = yield db.query(`
+      UPDATE friend_req
+      SET status = 'accepted'
+      WHERE req_id = $1
+      RETURNING *;
+    `, [id]);
+        if (result.rowCount === 0) {
+            res.status(404).json({ message: 'Friend request not found' });
+            return;
+        }
+        const { user_id, friend_id } = result.rows[0];
+        const insertFriendshipQuery = `
+      INSERT INTO friend (user_id, friend_user_id)
+      VALUES ($1, $2), ($2, $1)
+      ON CONFLICT DO NOTHING;
+    `;
+        yield db.query(insertFriendshipQuery, [user_id, friend_id]);
+        res.status(200).json({ message: 'Friend request accepted successfully' });
+    }
+    catch (error) {
+        console.error('Error accepting friend request:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+}));
+app.post('/api/rejectRequest/:id', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { id } = req.params;
+    if (!id) {
+        res.status(400).json({ message: 'Invalid request ID' });
+        return;
+    }
+    try {
+        const result = yield db.query(`
+      UPDATE friend_req
+      SET status = 'rejected'
+      WHERE req_id = $1
+      RETURNING *;
+    `, [id]);
+        if (result.rowCount === 0) {
+            res.status(404).json({ message: 'Friend request not found' });
+            return;
+        }
+        res.status(200).json({ message: 'Friend request rejected successfully' });
+    }
+    catch (error) {
+        console.error('Error accepting friend request:', error);
+        res.status(500).json({ message: 'Internal server error' });
     }
 }));
 app.post("/api/sendMessage", (req, res) => __awaiter(void 0, void 0, void 0, function* () {

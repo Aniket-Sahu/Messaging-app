@@ -24,12 +24,23 @@ interface addFriendResponse{
     friend?: friends;
 }
 
+interface friendReq {
+    req_id?: number;
+    username: string;
+    user_id: number;
+    friend_id: number; 
+    status: 'pending' | 'accepted' | 'rejected';
+    timestamp: Date; 
+}
+
+
 const App: React.FC = () =>{
     const [authenticated, setAuthenticated] = useState<boolean>(false);
     const [user, setUser] = useState<User | null>(null);
     const [loading, setLoading] = useState<boolean>(true); 
     const [selectedFriend, setSelectedFriend] = useState<User | null>(null);
     const [showMain, setShowmain] = useState<boolean>(true);  
+    const [friendReqs, setFriendReqs] = useState<friendReq[]>([]);
 
     useEffect(() => {
         const checkAuthStatus = async () => {
@@ -49,8 +60,23 @@ const App: React.FC = () =>{
                 setLoading(false); 
             }
         };
+        const fetchingFriendReqs = async () => {
+            try {
+                const response = await fetch('/friendReqs', {
+                    method: 'GET',
+                    credentials: 'include',
+                });
+                const data: friendReq[] = await response.json();
+                setFriendReqs(data);
+            } catch (error) {
+                console.error('Error getting friend requests', error);    
+            }
+        }
         checkAuthStatus();
+        fetchingFriendReqs();
     }, []);
+
+    
 
     const handleAddFriend = async (friendUID: number | undefined): Promise<void>=> {
         if(friendUID === undefined){
@@ -58,7 +84,7 @@ const App: React.FC = () =>{
             return;
         }
         try {
-            const response = await fetch('/api/addFriend', {
+            const response = await fetch('/api/sendFriendReq', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -68,13 +94,13 @@ const App: React.FC = () =>{
             });
             const data: addFriendResponse = await response.json();
             if (response.ok) {
-                console.log("Friend added successfully", data);
+                console.log("Friend req sent successfully", data);
                 setShowmain(true); 
             } else {
-                console.error('Error adding friend:', data.error);
+                console.error('Error sending friendReq:', data.error);
             }
         } catch (error) {
-            console.error('Error adding friend:', error);
+            console.error('Error sending friendReq:', error);
         }
     };
     
@@ -91,6 +117,7 @@ const App: React.FC = () =>{
                         user={user} 
                         selectedFriend={selectedFriend} 
                         setAuthenticated={setAuthenticated}
+                        friendReqs={friendReqs}
                     />
                 ) : (
                     <div>No user found. Please log in.</div> 
