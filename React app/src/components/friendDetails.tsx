@@ -18,7 +18,7 @@ const FriendDetails: React.FC<FriendDetailsProps> = ({ friendId }) => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`/api/getDetails?friendId=${friendId}`, {
+      const response = await fetch(`/api/getDetails/${friendId}`, {
         method: "GET",
         credentials: "include",
       });
@@ -34,6 +34,20 @@ const FriendDetails: React.FC<FriendDetailsProps> = ({ friendId }) => {
       setLoading(false);
     }
   };
+
+  const removeFriend = async () =>{
+    try {
+      const response = await fetch(`/api/removeFriend/${friendId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!response.ok) {
+        throw new Error("Failed to remove friend");
+      }
+    } catch (error) {
+      console.error("Error removing friend");
+    }
+  }
 
   useEffect(() => {
     getDetails();
@@ -55,6 +69,7 @@ const FriendDetails: React.FC<FriendDetailsProps> = ({ friendId }) => {
           <div>{details.username}</div>
           <small>Bio:</small>
           <div>{details.bio}</div>
+          <button onClick={removeFriend}>Remove friend</button>
         </>
       ) : (
         <div>No details available</div>

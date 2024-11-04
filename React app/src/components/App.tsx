@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import Sidebar from './sidebar';
 import Main from './main';
 import AddPage from './addPage';
-import { type } from 'os';
   
 interface friends {
     user_id: number;
@@ -12,6 +11,8 @@ interface friends {
 interface User {
     user_id: number;
     username: string;
+    bio?: string;
+    uid: number;
 } 
 
 interface AuthStatus {

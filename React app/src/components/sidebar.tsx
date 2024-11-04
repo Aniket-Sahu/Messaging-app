@@ -5,6 +5,7 @@ interface User {
   user_id: number;
   username: string;
   bio?: string;
+  uid: number;
 }
 
 interface sideBarProps {
@@ -86,7 +87,7 @@ const Sidebar: React.FC<sideBarProps> = ({
         </ul>
       </div>
       <button className="edit-profile-button" onClick={switchEditProfile}>Edit Profile</button>
-      {showEdit === true ? <EditProfile username={user?.username} bio={user?.bio} switchEditProfile={switchEditProfile}/> : null}
+      {showEdit === true ? <EditProfile username={user?.username} bio={user?.bio} uid={user?.uid} switchEditProfile={switchEditProfile}/> : null}
     </div>
   );
 };

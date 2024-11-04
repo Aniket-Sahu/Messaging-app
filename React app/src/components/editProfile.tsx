@@ -2,11 +2,12 @@ import React, { useState, useTransition } from "react";
 
 interface editProfileProps {
   username: string | undefined;
-  bio: string | undefined; 
+  bio: string | undefined;
+  uid: number | undefined; 
   switchEditProfile: () => void;
 }
 
-const EditProfile: React.FC<editProfileProps> = ({ username, bio, switchEditProfile }) => {
+const EditProfile: React.FC<editProfileProps> = ({ username, bio, uid, switchEditProfile }) => {
   const [newusername, setNewUsername] = useState<string | undefined>(username);
   const [newBio, setNewBio] = useState<string | undefined>(bio);
 
@@ -86,6 +87,9 @@ const EditProfile: React.FC<editProfileProps> = ({ username, bio, switchEditProf
           placeholder={bio}
         />
         <button onClick={() => updateBio(newBio)}>Done</button>
+      </div>
+      <div>
+        <h3>Your UID is: {uid}</h3>
       </div>
     </div>
   );

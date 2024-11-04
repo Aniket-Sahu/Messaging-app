@@ -5,6 +5,8 @@ import FriendDetails from "./friendDetails";
 interface User {
   user_id: number;
   username: string;
+  bio?: string;
+  uid: number;
 }
 
 interface mainProps {

@@ -184,9 +184,9 @@ app.get("/api/messages", (req, res) => __awaiter(void 0, void 0, void 0, functio
         }
     }
 }));
-app.get("/api/getDetails", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+app.get("/api/getDetails/:friendId", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     if (req.user) {
-        const friendId = parseInt(req.query.friendId);
+        const friendId = parseInt(req.params.friendId, 10);
         if (isNaN(friendId)) {
             res.status(400).json({ message: "Invalid friend ID" });
             return;
@@ -355,6 +355,28 @@ app.delete("/api/messages/:id", (req, res) => __awaiter(void 0, void 0, void 0, 
     catch (err) {
         console.error(err);
         res.status(500).json({ message: "Error deleting message" });
+    }
+}));
+app.delete("/api/removeFriend/:friendId", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    if (!req.isAuthenticated()) {
+        res.status(401).json({ message: "Unauthorized" });
+        return;
+    }
+    const friendId = parseInt(req.params.friendId, 10);
+    try {
+        yield db.query("DELETE FROM friend WHERE (user_id = $1 AND friend_user_id = $2) OR (friend_user_id = $1 AND user_id = $2)", [
+            req.user.user_id,
+            friendId
+        ]);
+        yield db.query("DELETE FROM data WHERE (user_id = $1 AND friend_id = $2) OR (friend_id = $1 AND user_id = $2)", [
+            req.user.user_id,
+            friendId
+        ]);
+        res.status(204).send();
+    }
+    catch (err) {
+        console.error(err);
+        res.status(500).json({ message: "Error removing friend" });
     }
 }));
 app.patch("/api/messages/:id", (req, res) => __awaiter(void 0, void 0, void 0, function* () {

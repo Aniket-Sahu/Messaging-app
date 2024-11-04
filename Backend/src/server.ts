@@ -39,7 +39,7 @@ app.use(
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(passport.initialize());
 app.use(passport.session());
-app.use(express.json());
+app.use(express.json()); 
 
 const db = new pg.Client({
   user: process.env.PG_USER as string,
@@ -56,7 +56,8 @@ declare global {
       user_id: number;
       username: string;
       password?: string;
-      UID?: number;
+      bio?: string;
+      UID: number;
     }
   }
 }
@@ -231,9 +232,9 @@ app.get("/api/messages", async (req: Request, res: Response) => {
   }
 });
 
-app.get("/api/getDetails", async (req: Request, res: Response) => {
+app.get("/api/getDetails/:friendId", async (req: Request, res: Response) => {
   if (req.user) {
-    const friendId = parseInt(req.query.friendId as string);
+    const friendId = parseInt(req.params.friendId, 10);
     if (isNaN(friendId)) {
       res.status(400).json({ message: "Invalid friend ID" });
       return;
@@ -433,6 +434,28 @@ app.delete("/api/messages/:id", async (req: Request, res: Response) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Error deleting message" });
+  }
+});
+
+app.delete("/api/removeFriend/:friendId", async (req: Request, res: Response) => {
+  if (!req.isAuthenticated()) {
+    res.status(401).json({ message: "Unauthorized" });
+    return;
+  }
+  const friendId = parseInt(req.params.friendId, 10);
+  try {
+    await db.query("DELETE FROM friend WHERE (user_id = $1 AND friend_user_id = $2) OR (friend_user_id = $1 AND user_id = $2)", [
+      req.user.user_id,
+      friendId
+    ]);
+    await db.query("DELETE FROM data WHERE (user_id = $1 AND friend_id = $2) OR (friend_id = $1 AND user_id = $2)", [
+      req.user.user_id,
+      friendId
+    ]);
+    res.status(204).send();
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Error removing friend" });
   }
 });
 
