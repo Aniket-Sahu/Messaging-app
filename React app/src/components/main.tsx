@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useContext, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import FriendDetails from "./friendDetails";
+import { SocketContext } from "../socketContext";
 
 interface User {
   user_id: number;
@@ -50,27 +51,25 @@ const Main: React.FC<mainProps> = ({
     isEditing: boolean;
     index: number | null;
   }>({ isEditing: false, index: null });
+  const socket = useContext(SocketContext);
 
   const handleMenuToggle = (index: number): void => {
     setShowMenu(showMenu === index ? null : index);
   };
 
   const handleDelete = async (messageId: number): Promise<void> => {
-    console.log(user.user_id);
     try {
-      const response = await fetch(`/api/messages/${messageId}`, {
-        method: "DELETE",
-        credentials: "include",
+      socket.emit("deleteMessage", { messageId }, (error: any) => {
+        if (error) {
+          console.error("Error deleting message:", error);
+        } else {
+          setMessages((prevMessages) =>
+            prevMessages.filter((message) => message.message_id !== messageId)
+          );
+        }
       });
-      if (response.ok) {
-        setMessages((prevMessages) =>
-          prevMessages.filter((message) => message.message_id !== messageId)
-        );
-      } else {
-        console.error("Failed to delete message:", await response.json());
-      }
     } catch (error) {
-      console.error("Error fetching messages:", error);
+      console.error("Error deleting message:", error);
     }
   };
 
@@ -79,36 +78,77 @@ const Main: React.FC<mainProps> = ({
 
     try {
       const messageId = messages[editing.index].message_id;
-      const response = await fetch(`/api/messages/${messageId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          editedMessage,
-        }),
+      socket.emit("editMessage", { messageId, editedMessage }, (error: any) => {
+        if (error) {
+          console.error("Error editing message:", error);
+        } else {
+          setMessages((prevMessages) =>
+            prevMessages.map((msg) =>
+              msg.message_id === messageId
+                ? { ...msg, message: editedMessage }
+                : msg
+            )
+          );
+          setNewMessage("");
+          setEditing({ isEditing: false, index: null });
+          setEditedMessage("");
+        }
       });
-      if (response.ok) {
-        const updatedMessage: Message = await response.json();
-        setMessages((prevMessages) =>
-          prevMessages.map((msg) =>
-            msg.message_id === messageId ? updatedMessage : msg
-          )
-        );
-        setNewMessage("");
-        setEditing({ isEditing: false, index: null });
-        setEditedMessage("");
-      }
     } catch (error) {
       console.error("Error sending message", error);
     }
   };
 
   useEffect(() => {
-    if (selectedFriend) {
+    if (!selectedFriend) {
+      setMessages([]);
+    }
+    else{
       fetchMessages();
       setShowFriendDetails(false);
     }
   }, [selectedFriend]);
+
+  useEffect(() => {
+    if (!socket) {
+      console.error("Socket is not available");
+      return;
+    }
+    socket.connect();
+
+    const handleMessage = (msg: Message) => {
+      setMessages((prev) => {
+        if (!prev.some((m) => m.message_id === msg.message_id)) {
+          return [...prev, msg];
+        }
+        return prev;
+      });
+    };
+
+    const handleMessageEdited = (updatedMessage: Message) => {
+      setMessages((prevMessages) =>
+        prevMessages.map((msg) =>
+          msg.message_id === updatedMessage.message_id ? updatedMessage : msg
+        )
+      );
+    };
+
+    const handleMessageDeleted = ({ messageId }: { messageId: number }) => {
+      console.log(messageId);
+      setMessages((prevMessages) =>
+        prevMessages.filter((msg) => msg.message_id !== messageId)
+      );
+    };
+
+    socket.on("message", handleMessage);
+    socket.on("messageEdited", handleMessageEdited);
+    socket.on("messageDeleted", handleMessageDeleted);
+
+    return () => {
+      socket.off("message", handleMessage);
+      socket.disconnect();
+    };
+  }, [socket]);
 
   const detailsManage = async () => {
     setShowFriendDetails(!showFriendDetails);
@@ -136,36 +176,20 @@ const Main: React.FC<mainProps> = ({
     }
   };
 
-  const messageSent = async (message: string) => {
-    if (!selectedFriend) {
-      alert("Please select a friend to send a message.");
-      return;
-    }
-    try {
-      const response = await fetch("/api/sendMessage", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          message,
-          friend_id: selectedFriend.user_id,
-        }),
-      });
-      const data = await response.json();
-
-      if (response.ok) {
-        setMessages((prevMessages) => [...prevMessages, data]);
-        setNewMessage("");
-      }
-    } catch (error) {
-      console.error("Error sending message", error);
-    }
-  };
-
   const handleSendMessage = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (newMessage.trim()) {
-      messageSent(newMessage);
+    if (newMessage.trim() && socket && selectedFriend?.user_id) {
+      socket.emit(
+        "message",
+        { message: newMessage, friendId: selectedFriend.user_id },
+        (error: any) => {
+          if (error) {
+            console.error("Failed to send message:", error);
+          } else {
+            setNewMessage("");
+          }
+        }
+      );
     }
   };
 
@@ -204,7 +228,6 @@ const Main: React.FC<mainProps> = ({
         headers: { "Content-Type": "application/json" },
         credentials: "include",
       });
-
     } catch (error) {
       console.error("Error accepting friend request", error);
     }
@@ -221,7 +244,6 @@ const Main: React.FC<mainProps> = ({
         headers: { "Content-Type": "application/json" },
         credentials: "include",
       });
-
     } catch (error) {
       console.error("Error rejecting friend request", error);
     }

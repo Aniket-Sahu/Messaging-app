@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { BrowserRouter } from "react-router-dom";
 import ReactDOM from "react-dom/client";
+import { SocketProvider } from "./socketContext";
 import Router from "./components/routes";
 import "./styles.css";
 
@@ -36,7 +37,9 @@ function Index() {
 
   return (
     <BrowserRouter>
-      <Router authenticated={authenticated} loading={loading} />
+      <SocketProvider>
+        <Router authenticated={authenticated} loading={loading} />
+      </SocketProvider>
     </BrowserRouter>
   );
 }

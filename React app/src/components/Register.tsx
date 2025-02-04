@@ -35,8 +35,8 @@ const Register: React. FC = () => {
     };
 
     return (
-        <div>
-            <h1 className='login-container'>Register</h1>
+        <div className='login-container'>
+            <h1>Register</h1>
             <form onSubmit={handleSubmit} className='login-form'>
                 <label htmlFor="username">Username:</label>
                 <input

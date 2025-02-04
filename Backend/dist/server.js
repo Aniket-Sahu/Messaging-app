@@ -9,45 +9,36 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 import express from "express";
 import bodyParser from "body-parser";
-import pg from "pg";
 import bcrypt from "bcrypt";
 import passport from "passport";
 import { Strategy } from "passport-local";
-import session from "express-session";
+import { Server } from "socket.io";
 import dotenv from "dotenv";
-import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
+import { sessionMiddleware, pool } from "./sessionMiddleware.js";
+import { createServer } from "http";
+// add socket.io to edit and delete too
 dotenv.config();
 const app = express();
 const port = 3000;
 const saltRounds = 10;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-app.use(cors({
-    origin: "http://localhost:3000",
-    credentials: true,
-}));
-app.use(session({
-    secret: process.env.SESSION_SECRET,
-    resave: false,
-    saveUninitialized: true,
-    cookie: {
-        maxAge: 1000 * 60 * 60 * 24,
+const server = createServer(app);
+const io = new Server(server, {
+    cors: {
+        origin: "http://localhost:3000",
+        methods: ["GET", "POST", "PATCH", "DELETE"],
+        credentials: true,
     },
-}));
+    transports: ["websocket", "polling"],
+});
 app.use(bodyParser.urlencoded({ extended: true }));
+app.use(sessionMiddleware);
 app.use(passport.initialize());
 app.use(passport.session());
 app.use(express.json());
-const db = new pg.Client({
-    user: process.env.PG_USER,
-    host: process.env.PG_HOST,
-    database: process.env.PG_DATABASE,
-    password: process.env.PG_PASSWORD,
-    port: Number(process.env.PG_PORT),
-});
-db.connect();
 app.use(express.static(path.join(__dirname, "../../React App/build")));
 app.get("/", (req, res) => {
     res.sendFile(path.join(__dirname, "../../React app/build/index.html"));
@@ -104,7 +95,7 @@ app.post("/register", (req, res) => __awaiter(void 0, void 0, void 0, function* 
     const username = req.body.username;
     const password = req.body.password;
     try {
-        const checkResult = yield db.query("SELECT * FROM users WHERE username = $1", [username]);
+        const checkResult = yield pool.query("SELECT * FROM users WHERE username = $1", [username]);
         if (checkResult.rows.length > 0) {
             res
                 .status(400)
@@ -121,7 +112,7 @@ app.post("/register", (req, res) => __awaiter(void 0, void 0, void 0, function* 
                 }
                 else {
                     const UID = Math.floor(Math.random() * 100000000);
-                    const result = yield db.query("INSERT INTO users (username, password, UID) VALUES ($1, $2, $3) RETURNING user_id,username", [username, hash, UID]);
+                    const result = yield pool.query("INSERT INTO users (username, password, UID) VALUES ($1, $2, $3) RETURNING user_id,username", [username, hash, UID]);
                     const newUser = result.rows[0];
                     req.login(newUser, (err) => {
                         if (err) {
@@ -152,7 +143,7 @@ app.get("/api/friends", (req, res) => __awaiter(void 0, void 0, void 0, function
     if (req.user) {
         const userId = req.user.user_id;
         try {
-            const friends = yield db.query(`SELECT u.user_id, u.username 
+            const friends = yield pool.query(`SELECT u.user_id, u.username 
             FROM friend f 
             JOIN users u ON f.friend_user_id = u.user_id 
             WHERE f.user_id = $1 
@@ -175,7 +166,7 @@ app.get("/api/messages", (req, res) => __awaiter(void 0, void 0, void 0, functio
         const friendIdString = req.query.friend_id;
         try {
             const friendId = parseInt(friendIdString, 10);
-            const result = yield db.query("SELECT * FROM data WHERE (user_id = $1 AND friend_id = $2) OR (user_id = $2 AND friend_id = $1)", [userId, friendId]);
+            const result = yield pool.query("SELECT * FROM messages WHERE (user_id = $1 AND friend_id = $2) OR (user_id = $2 AND friend_id = $1)", [userId, friendId]);
             res.json({ messages: result.rows });
         }
         catch (err) {
@@ -192,7 +183,7 @@ app.get("/api/getDetails/:friendId", (req, res) => __awaiter(void 0, void 0, voi
             return;
         }
         try {
-            const result = yield db.query("SELECT username, bio FROM users WHERE user_id = $1", [
+            const result = yield pool.query("SELECT username, bio FROM users WHERE user_id = $1", [
                 friendId,
             ]);
             if (result.rows.length === 0) {
@@ -216,7 +207,7 @@ app.post("/api/sendFriendReq", (req, res) => __awaiter(void 0, void 0, void 0, f
             return;
         }
         try {
-            const friendResult = yield db.query("SELECT user_id FROM users WHERE UID = $1", [friendUID]);
+            const friendResult = yield pool.query("SELECT user_id FROM users WHERE UID = $1", [friendUID]);
             if (friendResult.rows.length === 0) {
                 res.status(404).json({ error: "Friend not found" });
                 return;
@@ -228,17 +219,17 @@ app.post("/api/sendFriendReq", (req, res) => __awaiter(void 0, void 0, void 0, f
                     .json({ error: "You cannot send a friend request to yourself" });
                 return;
             }
-            const existingFriend = yield db.query("SELECT * FROM friend WHERE user_id = $1 AND friend_user_id = $2", [userId, friendId]);
+            const existingFriend = yield pool.query("SELECT * FROM friend WHERE user_id = $1 AND friend_user_id = $2", [userId, friendId]);
             if (existingFriend.rows.length > 0) {
                 res.status(400).json({ error: "Friendship already exists" });
                 return;
             }
-            const existingRequest = yield db.query("SELECT * FROM friend_req WHERE user_id = $1 AND friend_id = $2 AND status = 'pending'", [userId, friendId]);
+            const existingRequest = yield pool.query("SELECT * FROM friend_req WHERE user_id = $1 AND friend_id = $2 AND status = 'pending'", [userId, friendId]);
             if (existingRequest.rows.length > 0) {
                 res.status(400).json({ error: "Friend request already sent" });
                 return;
             }
-            const result = yield db.query("INSERT INTO friend_req (user_id, friend_id) VALUES ($1, $2) RETURNING *", [userId, friendId]);
+            const result = yield pool.query("INSERT INTO friend_req (user_id, friend_id) VALUES ($1, $2) RETURNING *", [userId, friendId]);
             res.json(result.rows[0]);
         }
         catch (error) {
@@ -251,7 +242,7 @@ app.get("/friendReqs", (req, res) => __awaiter(void 0, void 0, void 0, function*
     if (req.user) {
         const userId = req.user.user_id;
         try {
-            const friendRequests = yield db.query(`SELECT friend_req.*, users.username 
+            const friendRequests = yield pool.query(`SELECT friend_req.*, users.username 
            FROM friend_req 
            JOIN users ON friend_req.user_id = users.user_id 
            WHERE friend_req.friend_id = $1 AND friend_req.status = 'pending'`, [userId]);
@@ -273,7 +264,7 @@ app.post('/api/acceptRequest/:id', (req, res) => __awaiter(void 0, void 0, void 
         return;
     }
     try {
-        const result = yield db.query(`
+        const result = yield pool.query(`
       UPDATE friend_req
       SET status = 'accepted'
       WHERE req_id = $1
@@ -289,7 +280,7 @@ app.post('/api/acceptRequest/:id', (req, res) => __awaiter(void 0, void 0, void 
       VALUES ($1, $2), ($2, $1)
       ON CONFLICT DO NOTHING;
     `;
-        yield db.query(insertFriendshipQuery, [user_id, friend_id]);
+        yield pool.query(insertFriendshipQuery, [user_id, friend_id]);
         res.status(200).json({ message: 'Friend request accepted successfully' });
     }
     catch (error) {
@@ -304,7 +295,7 @@ app.post('/api/rejectRequest/:id', (req, res) => __awaiter(void 0, void 0, void 
         return;
     }
     try {
-        const result = yield db.query(`
+        const result = yield pool.query(`
       UPDATE friend_req
       SET status = 'rejected'
       WHERE req_id = $1
@@ -321,42 +312,70 @@ app.post('/api/rejectRequest/:id', (req, res) => __awaiter(void 0, void 0, void 
         res.status(500).json({ message: 'Internal server error' });
     }
 }));
-app.post("/api/sendMessage", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    if (req.user) {
-        const { message, friend_id } = req.body;
-        const userId = req.user.user_id;
-        if (!message || !friend_id) {
-            res.status(400).json({ error: "Message and friendId are required." });
-            return;
-        }
-        try {
-            const result = yield db.query("INSERT INTO data (user_id, friend_id, message, time) VALUES ($1, $2, $3, NOW()) RETURNING *", [userId, friend_id, message]);
-            res.json(result.rows[0]);
-        }
-        catch (error) {
-            console.error("Error sending message:", error);
-            res.status(500).json({ error: "Failed to send a message." });
-        }
-    }
-}));
-app.delete("/api/messages/:id", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    if (!req.isAuthenticated()) {
-        res.status(401).json({ message: "Unauthorized" });
-        return;
-    }
-    const messageId = parseInt(req.params.id, 10);
-    try {
-        yield db.query("DELETE FROM data WHERE message_id = $1 AND user_id = $2", [
-            messageId,
-            req.user.user_id,
-        ]);
-        res.status(204).send();
-    }
-    catch (err) {
-        console.error(err);
-        res.status(500).json({ message: "Error deleting message" });
-    }
-}));
+// Redundant after adding socket.io
+// app.post(
+//   "/api/sendMessage",
+//   async (req: Request<{}, {}, Message>, res: Response): Promise<void> => {
+//     if (req.user) {
+//       const { message, friend_id } = req.body;
+//       const userId = req.user.user_id;
+//       if (!message || !friend_id) {
+//         res.status(400).json({ error: "Message and friendId are required." });
+//         return;
+//       }
+//       try {
+//         const result: QueryResult<Message> = await pool.query(
+//           "INSERT INTO messages (user_id, friend_id, message, time) VALUES ($1, $2, $3, NOW()) RETURNING *",
+//           [userId, friend_id, message]
+//         );
+//         res.json(result.rows[0]);
+//       } catch (error) {
+//         console.error("Error sending message:", error);
+//         res.status(500).json({ error: "Failed to send a message." });
+//       }
+//     }
+//   }
+// );
+// app.delete("/api/messages/:id", async (req: Request, res: Response) => {
+//   if (!req.isAuthenticated()) {
+//     res.status(401).json({ message: "Unauthorized" });
+//     return;
+//   }
+//   const messageId = parseInt(req.params.id, 10);
+//   try {
+//     await pool.query("DELETE FROM messages WHERE message_id = $1 AND user_id = $2", [
+//       messageId,
+//       req.user.user_id,
+//     ]);
+//     res.status(204).send();
+//   } catch (err) {
+//     console.error(err);
+//     res.status(500).json({ message: "Error deleting message" });
+//   }
+// });
+// app.patch("/api/messages/:id", async (req: Request, res: Response) => {
+//   if (!req.isAuthenticated()) {
+//     res.status(401).json({ message: "Unauthorized" });
+//     return;
+//   }
+//   const messageId = parseInt(req.params.id, 10);
+//   const { editedMessage } = req.body as { editedMessage: string };
+//   try {
+//     const result: QueryResult<Message> = await pool.query(
+//       "UPDATE messages SET message = $1 WHERE message_id = $2 AND user_id = $3 RETURNING *",
+//       [editedMessage, messageId, req.user.user_id]
+//     );
+//     if (result.rowCount === 0) {
+//       res.status(404).json({ message: "Message not found or not authorized" });
+//       return;
+//     }
+//     const updatedMessage = result.rows[0];
+//     res.status(200).json(updatedMessage);
+//   } catch (err) {
+//     console.error(err);
+//     res.status(500).json({ message: "Error editing message" });
+//   }
+// });
 app.delete("/api/removeFriend/:friendId", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     if (!req.isAuthenticated()) {
         res.status(401).json({ message: "Unauthorized" });
@@ -364,11 +383,11 @@ app.delete("/api/removeFriend/:friendId", (req, res) => __awaiter(void 0, void 0
     }
     const friendId = parseInt(req.params.friendId, 10);
     try {
-        yield db.query("DELETE FROM friend WHERE (user_id = $1 AND friend_user_id = $2) OR (friend_user_id = $1 AND user_id = $2)", [
+        yield pool.query("DELETE FROM friend WHERE (user_id = $1 AND friend_user_id = $2) OR (friend_user_id = $1 AND user_id = $2)", [
             req.user.user_id,
             friendId
         ]);
-        yield db.query("DELETE FROM data WHERE (user_id = $1 AND friend_id = $2) OR (friend_id = $1 AND user_id = $2)", [
+        yield pool.query("DELETE FROM messages WHERE (user_id = $1 AND friend_id = $2) OR (friend_id = $1 AND user_id = $2)", [
             req.user.user_id,
             friendId
         ]);
@@ -379,27 +398,6 @@ app.delete("/api/removeFriend/:friendId", (req, res) => __awaiter(void 0, void 0
         res.status(500).json({ message: "Error removing friend" });
     }
 }));
-app.patch("/api/messages/:id", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    if (!req.isAuthenticated()) {
-        res.status(401).json({ message: "Unauthorized" });
-        return;
-    }
-    const messageId = parseInt(req.params.id, 10);
-    const { editedMessage } = req.body;
-    try {
-        const result = yield db.query("UPDATE data SET message = $1 WHERE message_id = $2 AND user_id = $3 RETURNING *", [editedMessage, messageId, req.user.user_id]);
-        if (result.rowCount === 0) {
-            res.status(404).json({ message: "Message not found or not authorized" });
-            return;
-        }
-        const updatedMessage = result.rows[0];
-        res.status(200).json(updatedMessage);
-    }
-    catch (err) {
-        console.error(err);
-        res.status(500).json({ message: "Error editing message" });
-    }
-}));
 app.patch("/api/editUsername", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     if (!req.isAuthenticated()) {
         res.status(401).json({ message: "Unauthorized" });
@@ -408,7 +406,7 @@ app.patch("/api/editUsername", (req, res) => __awaiter(void 0, void 0, void 0, f
     const userId = req.user.user_id;
     const { newusername } = req.body;
     try {
-        const result = yield db.query("UPDATE users SET username = $1 WHERE user_id = $2 RETURNING *", [newusername, userId]);
+        const result = yield pool.query("UPDATE users SET username = $1 WHERE user_id = $2 RETURNING *", [newusername, userId]);
         if (result.rowCount === 0) {
             res.status(404).json({ text: "User not found" });
             return;
@@ -428,7 +426,7 @@ app.patch("/api/editBio", (req, res) => __awaiter(void 0, void 0, void 0, functi
     const userId = req.user.user_id;
     const { newBio } = req.body;
     try {
-        const result = yield db.query("UPDATE users SET bio = $1 WHERE user_id = $2 RETURNING *", [newBio, userId]);
+        const result = yield pool.query("UPDATE users SET bio = $1 WHERE user_id = $2 RETURNING *", [newBio, userId]);
         if (result.rowCount === 0) {
             res.status(404).json({ text: "User not found" });
             return;
@@ -442,8 +440,7 @@ app.patch("/api/editBio", (req, res) => __awaiter(void 0, void 0, void 0, functi
 }));
 passport.use(new Strategy((username, password, cb) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        const result = yield db.query("SELECT * FROM users WHERE username = $1", [username]);
-        console.log("Query result:", result.rows);
+        const result = yield pool.query("SELECT * FROM users WHERE username = $1", [username]);
         if (result.rows.length > 0) {
             const user = result.rows[0];
             const storedHashedPassword = user.password;
@@ -471,9 +468,6 @@ passport.use(new Strategy((username, password, cb) => __awaiter(void 0, void 0, 
         return cb(err);
     }
 })));
-app.get("*", (req, res) => {
-    res.sendFile(path.join(__dirname, "..", "..", "React app", "build", "index.html"));
-});
 app.use((err, req, res, next) => {
     console.error(err.stack);
     res.status(500).send("Something broke!");
@@ -483,7 +477,7 @@ passport.serializeUser((user, done) => {
 });
 passport.deserializeUser((id, done) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        const result = yield db.query("SELECT * FROM users WHERE user_id = $1", [id]);
+        const result = yield pool.query("SELECT * FROM users WHERE user_id = $1", [id]);
         const user = result.rows[0];
         done(null, user);
     }
@@ -491,7 +485,88 @@ passport.deserializeUser((id, done) => __awaiter(void 0, void 0, void 0, functio
         done(err, null);
     }
 }));
-app.listen(port, () => {
+io.use((socket, next) => {
+    const req = socket.request;
+    sessionMiddleware(req, {}, () => {
+        passport.initialize()(req, {}, () => {
+            passport.session()(req, {}, () => {
+                if (req.isAuthenticated && req.isAuthenticated()) {
+                    return next();
+                }
+                next(new Error("Unauthorized"));
+            });
+        });
+    });
+});
+const userSockets = new Map();
+io.on("connection", (socket) => __awaiter(void 0, void 0, void 0, function* () {
+    console.log(`Socket connected: ${socket.id}`);
+    const req = socket.request;
+    if (!req.isAuthenticated()) {
+        console.log("unauthorised user attempted connection");
+        socket.disconnect();
+        return;
+    }
+    const userId = req.user.user_id;
+    userSockets.set(userId, socket.id);
+    socket.on("message", (_a, callback_1) => __awaiter(void 0, [_a, callback_1], void 0, function* ({ message, friendId }, callback) {
+        const userId = req.user.user_id;
+        console.log("message is: ", message);
+        console.log("friend's id is:", friendId);
+        if (!message || !friendId) {
+            return callback("Invalid message format");
+        }
+        try {
+            const newMessage = yield pool.query(`INSERT INTO messages (user_id, friend_id, message, time)
+        VALUES ($1, $2, $3, NOW()) RETURNING *`, [userId, friendId, message]);
+            const savedMessage = newMessage.rows[0];
+            const recipientSocketId = userSockets.get(friendId);
+            if (recipientSocketId) {
+                io.to(recipientSocketId).emit("message", savedMessage);
+            }
+            io.to(socket.id).emit("message", savedMessage);
+            callback();
+        }
+        catch (error) {
+            console.error("Error saving message:", error);
+            callback("Error sending message");
+        }
+    }));
+    socket.on("editMessage", (_a, callback_1) => __awaiter(void 0, [_a, callback_1], void 0, function* ({ messageId, editedMessage }, callback) {
+        try {
+            const result = yield pool.query("UPDATE messages set message = $1 WHERE message_id = $2 RETURNING *", [editedMessage, messageId]);
+            if (result.rowCount === 0) {
+                return callback("Message not found or not authorized");
+            }
+            const updatedMessage = result.rows[0];
+            io.emit("messageEdited", updatedMessage);
+            callback(null, updatedMessage);
+        }
+        catch (error) {
+            console.error("Error editing message:", error);
+            callback("Error editing message");
+        }
+    }));
+    socket.on("deleteMessage", (_a, callback_1) => __awaiter(void 0, [_a, callback_1], void 0, function* ({ messageId }, callback) {
+        try {
+            yield pool.query("DELETE FROM messages WHERE message_id = $1", [messageId]);
+            io.emit("messageDeleted", { messageId });
+            callback(null);
+        }
+        catch (error) {
+            console.error("Error deleting message:", error);
+            callback("Error deleting message");
+        }
+    }));
+    socket.on("disconnect", () => {
+        console.log(`User ${userId} disconnected.`);
+        userSockets.delete(userId);
+    });
+}));
+app.get("*", (req, res) => {
+    res.sendFile(path.join(__dirname, "..", "..", "React app", "build", "index.html"));
+});
+server.listen(port, () => {
     console.log(`Server running on port ${port}`);
 });
 //# sourceMappingURL=server.js.map

@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import Sidebar from './sidebar';
 import Main from './main';
 import AddPage from './addPage';
+import { SocketContext } from '../socketContext';
   
 interface friends {
     user_id: number;
@@ -42,6 +43,7 @@ const App: React.FC = () =>{
     const [selectedFriend, setSelectedFriend] = useState<User | null>(null);
     const [showMain, setShowmain] = useState<boolean>(true);  
     const [friendReqs, setFriendReqs] = useState<friendReq[]>([]);
+    const socket = useContext(SocketContext);
 
     useEffect(() => {
         const checkAuthStatus = async () => {
@@ -76,8 +78,6 @@ const App: React.FC = () =>{
         checkAuthStatus();
         fetchingFriendReqs();
     }, []);
-
-    
 
     const handleAddFriend = async (friendUID: number | undefined): Promise<void>=> {
         if(friendUID === undefined){
