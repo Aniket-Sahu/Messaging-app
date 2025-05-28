@@ -154,5 +154,3 @@ Contributions are welcome! Please fork the repo and submit a pull request.
 This project is open-source and available under the [MIT License](LICENSE).
 
 ---
-
-Let me know if you'd like it personalized further (e.g. your name, social handles, deployment link, etc.) or want me to help generate screenshots or badges.
